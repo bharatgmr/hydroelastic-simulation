@@ -24,6 +24,15 @@ the band is being touched by the edge of a patch that is centred somewhere else.
 
 ![parts](figures/parts.png)
 
+Each part also has its own figure, at full size — the patch field over the marked region, what varies
+along the pass, and where the contact centre sat relative to the line:
+
+| | |
+|---|---|
+| [BHARAT_CLOUD_1](figures/part_BHARAT_CLOUD_1.png) | [BHARAT_CLOUD_2](figures/part_BHARAT_CLOUD_2.png) |
+| [BHARAT_CLOUD_3](figures/part_BHARAT_CLOUD_3.png) | [weld_t3_eigen](figures/part_weld_t3_eigen.png) |
+| [weld_t1_eigen](figures/part_weld_t1_eigen.png) | |
+
 ## Why the contact leaves the line
 
 The disc is 178 mm across; these bands are 13–45 mm wide. Anything proud within a disc radius of

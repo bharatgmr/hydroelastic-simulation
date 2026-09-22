@@ -153,6 +153,79 @@ def plot(runs: list[dict], grids: list[CoverageGrid], out: Path) -> None:
     plt.close(fig)
 
 
+def plot_part(run: dict, grid: CoverageGrid, out: Path) -> Path:
+    """One part, one file: the patch field, the loads along the pass, and where contact landed.
+
+    The comparison figure is for reading five parts against each other; this is the one to open
+    when the question is what happened on a single scan.
+    """
+    marked = run["geometry"]["marked_local"]
+    line = run["geometry"]["centreline"]
+    rows = run["summary"]["rows"]
+    offsets = contact_offsets(run)
+    hit = marked_coverage(run, grid)
+    tcp = run["summary"]["tcp"]
+    band = run["summary"]["band"]
+    extent = [grid.origin[0] * 1e3, (grid.origin[0] + grid.shape[1] * grid.cell_size) * 1e3,
+              grid.origin[1] * 1e3, (grid.origin[1] + grid.shape[0] * grid.cell_size) * 1e3]
+    x_along = np.array([r["x_m"] for r in rows]) * 1e3
+
+    fig = plt.figure(figsize=(11.0, 10.6))
+    spec = fig.add_gridspec(3, 1, height_ratios=[1.35, 1.0, 1.0], hspace=0.32)
+
+    ax = fig.add_subplot(spec[0])
+    ax.set_facecolor("#1b1f26")
+    ax.scatter(marked[:, 0] * 1e3, marked[:, 1] * 1e3, s=1.5, c="#3f9c66", alpha=0.35,
+               linewidths=0, label="marked region")
+    applied = np.where(grid.applied_pressure > 0, grid.applied_pressure / 1e3, np.nan)
+    image = ax.imshow(applied, origin="lower", extent=extent, cmap="magma",
+                      interpolation="nearest")
+    fig.colorbar(image, ax=ax, fraction=0.03, pad=0.01, label="applied pressure [kPa]")
+    ax.plot(line[:, 0] * 1e3, line[:, 1] * 1e3, color="#7fd4ff", lw=1.2, label="commanded line")
+    cop_x = np.array([r["cop_x_m"] for r in rows]) * 1e3
+    cop_y = np.array([r["cop_y_m"] for r in rows]) * 1e3
+    ax.plot(cop_x, cop_y, color="#ffd166", lw=0.9, ls="--", label="contact centre")
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.35)
+    ax.set_aspect("equal")
+    ax.set_xlabel("along the band [mm]")
+    ax.set_ylabel("across [mm]")
+    ax.set_title(f"{run['name']} — band {band['length_m']*1e3:.0f} x {band['width_m']*1e3:.0f} mm, "
+                 f"{len(rows)} presses at {run['summary']['config']['force_setpoint_n']:.0f} N "
+                 f"through {tcp['name']}", fontsize=11)
+
+    ax = fig.add_subplot(spec[1])
+    ax.plot(x_along, [r["patch_area_m2"] * 1e4 for r in rows], color="#c2600f",
+            label="patch area [cm2]")
+    ax.plot(x_along, [r["pressure_peak_pa"] / 1e3 for r in rows], color="#3d7ea6",
+            label="peak pressure [kPa]")
+    ax.plot(x_along, [r["force_axial_n"] for r in rows], color="#6b7280", ls="--",
+            label="axial force [N]")
+    ax.set_xlabel("along the band [mm]")
+    ax.grid(alpha=0.25)
+    ax.legend(fontsize=8, ncol=3)
+    ax.set_title("what varies along the pass", fontsize=10)
+
+    ax = fig.add_subplot(spec[2])
+    ax.axhspan(-offsets["half_width_mm"], offsets["half_width_mm"], color="#3f9c66", alpha=0.22,
+               label="marked band")
+    ax.axhline(0.0, color="#7fd4ff", lw=1.0, label="commanded line")
+    ax.plot(x_along, offsets["across_mm"], color="#c2402c", lw=1.3, label="contact centre, across")
+    ax.plot(x_along, offsets["along_mm"], color="#6b7280", lw=1.0, ls="--",
+            label="contact centre, along")
+    ax.set_xlabel("along the band [mm]")
+    ax.set_ylabel("offset from the line [mm]")
+    ax.grid(alpha=0.25)
+    ax.legend(fontsize=8, ncol=2)
+    ax.set_title(f"contact centre off the band on {offsets['off_band_fraction']*100:.0f}% of "
+                 f"waypoints · {hit['marked_coverage_percent']:.0f}% of the marked region touched",
+                 fontsize=10)
+
+    destination = out / f"part_{run['name']}.png"
+    fig.savefig(destination, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return destination
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("runs", type=Path, nargs="+")
@@ -174,10 +247,14 @@ def main() -> int:
         return 1
 
     args.out.mkdir(parents=True, exist_ok=True)
-    plot(runs, grids, args.out / "parts.png")
+    targets = [args.out]
     if args.figures_dir:
         args.figures_dir.mkdir(parents=True, exist_ok=True)
-        plot(runs, grids, args.figures_dir / "parts.png")
+        targets.append(args.figures_dir)
+    written = []
+    for target in targets:
+        plot(runs, grids, target / "parts.png")
+        written.extend(plot_part(run, grid, target) for run, grid in zip(runs, grids))
 
     print(f"{'part':<18} {'band mm':>10} {'presses':>8} {'marked hit':>11} {'patch cm2':>10} "
           f"{'peak kPa':>9} {'force N':>9} {'off-band':>9} {'across mm':>10}")
@@ -217,8 +294,9 @@ def main() -> int:
     print("\nThe disc is 178 mm across and these bands are 13-45 mm wide, so wherever the part has\n"
           "relief the rim can reach neighbouring material before the marked region. Where that\n"
           "happens the contact sits off the line and the painted band is not what gets ground.")
-    print(f"\nwrote {args.out}/parts.png and summary.json"
-          + (f", figures also in {args.figures_dir}" if args.figures_dir else ""))
+    print(f"\nwrote {args.out}/parts.png, summary.json, and one figure per part: "
+          + ", ".join(sorted({path.name for path in written}))
+          + (f"\n      figures also in {args.figures_dir}" if args.figures_dir else ""))
     return 0
 
 
