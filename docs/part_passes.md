@@ -79,6 +79,23 @@ Each part takes 9–16 s: the scan is meshed as a watertight slab (hydroelastic 
 surfaces) and the SDF is rebuilt in 150 mm chunks along the line, because one SDF covering a 600 mm
 weld plus the disc's reach will not fit in GPU memory at a voxel fine enough to resolve penetration.
 
+## Watch a pass
+
+`press_part.py --record` writes `press.usda`, but it rebuilds the stage once per SDF chunk, so the
+file it leaves behind holds only the *last* chunk's slab — the disc flies over empty space for most
+of the pass. Rebake it from the saved run first (no Isaac Sim, no GPU, ~0.5 s per part):
+
+```bash
+python scripts/grind/rebake_part_usd.py runs/part_*        # prints a framed replay command per run
+python scripts/replay_recording.py runs/part_BHARAT_CLOUD_3/press.usda --loop --speed 0.5 \
+    --eye -0.064 -0.285 0.311 --target -0.064 -0.002 -0.034
+```
+
+The rebaked scene is the whole scanned neighbourhood as one slab, the marked region in green, the
+disc at every pressed waypoint, and the contact patch coloured by pressure. It is baked animation,
+not physics, so it opens in seconds and looks the same every time. On the BHARAT parts you can
+watch the patch sit beside the green band rather than on it; on the welds it stays on the line.
+
 ## Limits specific to these runs
 
 - **The part is a heightfield slab.** A single height per (x, y) in the band's frame represents

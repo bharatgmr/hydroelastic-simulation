@@ -54,6 +54,7 @@ def write_press_usd(
     fps: float = 1.0,
     max_points: int = 40_000,
     point_width: float = 0.0015,
+    marker_points: np.ndarray | None = None,
 ) -> None:
     """Write pad, sheet and per-frame contact points to a USD file.
 
@@ -66,6 +67,8 @@ def write_press_usd(
         max_points: Patches are subsampled to this many points for display. A flat press can
             produce 200k faces, which is slow to load and unreadable on screen.
         point_width: Display width of each contact point [m].
+        marker_points: Optional static points drawn in green — the scan's marked region, so it is
+            visible in the replay whether contact is landing on it.
     """
     from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
@@ -100,6 +103,17 @@ def write_press_usd(
     author_mesh("/World/pad/mesh", pad_mesh, (0.75, 0.20, 0.18))
     translate_op = pad_xform.AddTranslateOp()
     orient_op = pad_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
+
+    if marker_points is not None and len(marker_points):
+        marked = np.asarray(marker_points, dtype=np.float32)
+        if len(marked) > max_points:
+            marked = marked[np.random.default_rng(1).choice(len(marked), max_points, replace=False)]
+        marker = UsdGeom.Points.Define(stage, "/World/marked")
+        marker.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(marked))
+        marker.CreateWidthsAttr(Vt.FloatArray.FromNumpy(
+            np.full(len(marked), point_width, np.float32)))
+        marker.SetWidthsInterpolation(UsdGeom.Tokens.constant)
+        marker.CreateDisplayColorAttr(Vt.Vec3fArray([Gf.Vec3f(0.15, 0.70, 0.30)]))
 
     points = UsdGeom.Points.Define(stage, "/World/contact")
     points_attr = points.CreatePointsAttr()

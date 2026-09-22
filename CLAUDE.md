@@ -28,6 +28,9 @@ scripts/
     gate_report.py            step 3: scores runs against analytic, writes the verdict
     press_tcp.py              press through one of the cell's TCP frames
     press_path.py             walk a planner-shaped path over a flat plate
+    press_part.py             walk the centreline of a scan's marked region
+    part_report.py            per-part + comparison figures from part runs
+    rebake_part_usd.py        rebuild a part run's replay USD with the WHOLE part (no Isaac)
     path_report.py            coverage maps + both coverage metrics
     plot_patch.py             pressure maps from saved patches
 src/grind_sim/
@@ -170,6 +173,10 @@ Read these before touching `tcp.py` — each was got wrong once, and each failur
 - **Black viewport:** the stage has no lights of its own. Run the walkthrough's lighting action
   (`omni.kit.viewport.menubar.lighting` / `set_lighting_mode_camera`) or pick a mode from the viewport's
   "Stage Lights" menu.
+- **A part run's recording only holds the last SDF chunk's slab.** `press_part.py` recreates the
+  stage per chunk, so replaying its `press.usda` shows the disc over empty space for most of the
+  pass. Run `scripts/grind/rebake_part_usd.py <run>` first — it rebuilds the file from
+  `geometry.npz` + `patches/` with one slab over the whole band, on the CPU, in under a second.
 - **Recordings** bake only the nut's world transform per update; the parts are referenced from NVIDIA's S3
   asset root, so replay needs the same asset access (plain `pxr`/usdview cannot resolve those https
   references — open recordings through Isaac Sim).
