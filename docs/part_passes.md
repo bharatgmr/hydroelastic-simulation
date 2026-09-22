@@ -92,9 +92,28 @@ python scripts/replay_recording.py runs/part_BHARAT_CLOUD_3/press.usda --loop --
 ```
 
 The rebaked scene is the whole scanned neighbourhood as one slab, the marked region in green, the
-disc at every pressed waypoint, and the contact patch coloured by pressure. It is baked animation,
-not physics, so it opens in seconds and looks the same every time. On the BHARAT parts you can
-watch the patch sit beside the green band rather than on it; on the welds it stays on the line.
+disc at every pressed waypoint (at 40% opacity, so the patch shows through it), and the contact
+patch coloured by pressure. It is baked animation, not physics, so it opens in seconds and looks
+the same every time. On the BHARAT parts you can watch the patch sit beside the green band rather
+than on it; on the welds it stays on the line.
+
+To review all five without driving a camera, render them to video instead — headless, five fixed
+points of view per part, a couple of seconds each:
+
+```bash
+python scripts/grind/render_views.py runs/part_* --out runs/part_videos
+```
+
+| view | what it answers |
+|---|---|
+| `iso` | overview — where the disc is on the part |
+| `across` | square to the band, low — is the disc sitting on a shoulder beside the line? |
+| `along` | down the line, low — how the lead tilt presents the disc to the surface |
+| `top` | plan, disc hidden — the patch against the green band, the clearest single view |
+| `chase` | tracks the disc down the pass, close in |
+
+`top` is the one to open first: on `BHARAT_CLOUD_3` the patch sits entirely below the green band for
+the whole pass, which is the 97% off-band number in the table as a picture.
 
 ## Limits specific to these runs
 

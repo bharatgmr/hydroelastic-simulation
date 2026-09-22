@@ -31,6 +31,7 @@ scripts/
     press_part.py             walk the centreline of a scan's marked region
     part_report.py            per-part + comparison figures from part runs
     rebake_part_usd.py        rebuild a part run's replay USD with the WHOLE part (no Isaac)
+    render_views.py           headless mp4 per part per viewpoint (needs imageio-ffmpeg)
     path_report.py            coverage maps + both coverage metrics
     plot_patch.py             pressure maps from saved patches
 src/grind_sim/
@@ -170,6 +171,13 @@ Read these before touching `tcp.py` — each was got wrong once, and each failur
   (see its `__init__` for `iterations`, `integrator`, `impratio`, …).
 - **Nut slipping through threads:** at the walkthrough's `hydroelasticStiffness=1e10` the nut falls through the
   threads; `1e12` threads correctly (≈1.96 mm/turn on the 2 mm-pitch M16).
+- **Viewport overlays land in captures.** The grid, origin axes and selection outline are drawn
+  over the render, and the viewport extension sets them itself at startup, so `--/...` overrides on
+  the command line do not survive. Turn them off through `carb.settings` once the app is up:
+  `/app/viewport/grid/enabled`, `/app/viewport/outline/enabled` and
+  `/persistent/app/viewport/Viewport/Viewport0/guide/{grid,axis,selection}/visible`.
+- **No ffmpeg on this host** and OpenCV's wheel only writes MJPG/AVI. `imageio-ffmpeg` (pip, ships
+  its own static binary) is what `render_views.py` uses for H.264.
 - **Black viewport:** the stage has no lights of its own. Run the walkthrough's lighting action
   (`omni.kit.viewport.menubar.lighting` / `set_lighting_mode_camera`) or pick a mode from the viewport's
   "Stage Lights" menu.
