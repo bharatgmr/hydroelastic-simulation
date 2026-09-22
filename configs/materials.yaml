@@ -1,0 +1,36 @@
+# Workpiece materials. E, nu and rho are textbook values; everything else is genuinely unknown
+# here and stays null rather than being invented. sanding-wm's own metal constants are stamped
+# `provenance: provisional_literature` and its metal coupon campaign was never run, so there is
+# no measured source to copy from.
+#
+# How the metal actually enters this sim (see the grind prompt):
+#   1. contact stiffness  k = E / (h * (1 - nu^2)), capped at 100x k_pad — a sub-1% effect,
+#      because the pad is thousands of times softer than any of these metals;
+#   2. sheet bending compliance (v2, spring-mounted sheet) — the big one for thin sheet;
+#   3. friction, via mu_vs_abrasive — drives tangential force and spindle torque;
+#   4. density/mass, only when the sheet is free or spring-mounted;
+#   5. hardness_HB and preston_k are carried into run metadata for phase 2 and used nowhere yet.
+
+aluminum_6061:
+  E: 68.9e9
+  nu: 0.33
+  rho: 2700
+  mu_vs_abrasive: null      # TODO_MEASURE
+  hardness_HB: null         # TODO_MEASURE
+  preston_k: null           # TODO_MEASURE
+
+carbon_steel_a36:
+  E: 200.0e9
+  nu: 0.26
+  rho: 7850
+  mu_vs_abrasive: null      # TODO_MEASURE
+  hardness_HB: null         # TODO_MEASURE
+  preston_k: null           # TODO_MEASURE
+
+stainless_304:
+  E: 193.0e9
+  nu: 0.29
+  rho: 8000
+  mu_vs_abrasive: null      # TODO_MEASURE
+  hardness_HB: null         # TODO_MEASURE
+  preston_k: null           # TODO_MEASURE

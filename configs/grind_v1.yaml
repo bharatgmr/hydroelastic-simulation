@@ -1,0 +1,64 @@
+# v1 fidelity-gate configuration. Values marked TODO_MEASURE are not known for the real tool and
+# are NOT guesses to be trusted — see docs/gate_findings.md and the open-gaps list.
+#
+# Defaults follow sanding-wm's sanding envelope until GrindV7 numbers arrive:
+#   force 10-30 N (cell envelope 5-60 N), spindle 2865-7162 RPM, tilt 0-5 deg (cap 12).
+
+pad:
+  # 3M 80514 7" ribbed extra-hard face plate, flat variant (ribs deferred past v1).
+  outer_diameter_m: 0.1778      # 7 in
+  bore_diameter_m: 0.0222       # 7/8 in arbor hole
+  thickness_m: 0.0127           # 1/2 in
+  mass_kg: 0.37                 # TODO_MEASURE: weigh the real plate
+  modulus_pa: null              # TODO_MEASURE: calibrated parameter, prompt sweeps 20-500 MPa
+  variant: flat                 # flat | ribbed (ribbed not implemented in v1)
+  ribs:                         # all TODO_MEASURE; no rib data exists in any repo here
+    n_ribs: null
+    rib_width_m: null
+    rib_height_m: null
+    rib_pattern: null           # radial | concentric
+    rib_inner_radius_m: null
+    rib_outer_radius_m: null
+  fiber_disc:
+    # Folded into the pad in v1; its compliance is inside the pad modulus.
+    thickness_m: 0.0008
+    separate_layer: false
+
+sheet:
+  side_m: 0.300
+  thickness_m: 0.003            # also test 0.0015 and 0.00635
+  material: carbon_steel_a36    # key into materials.yaml
+  support: rigid_backing        # rigid_backing | clamped_edges | simply_supported
+  support_span_m: null          # required unless support is rigid_backing
+
+contact:
+  # Newton needs the SDF to resolve the penetration; under ~2 voxels the peak pressure inflates
+  # (measured: 2.2x at 0.26 voxels, 213x at 0.001 voxels). See docs/gate_findings.md.
+  pad_voxel_m: null             # null: penetration/2, clamped by memory_budget_gb
+  sheet_voxel_m: null           # null: 4x the pad voxel, min 1 mm (the sheet face is planar)
+  narrow_band_m: 0.002          # inner band is clamped to 0.4 * sheet thickness
+  texture_format: float32       # uint8 | uint16 | float32
+  contact_margin_m: 0.0
+  reduce_contacts: false        # must stay false for pressure maps
+  mc_edge_clamp_min: 0.0
+  memory_budget_gb: 8.0
+
+motion:
+  tilt_deg: 5.0                 # 0 is flat; the cell's commanded tilt is ~0, contact tilt is real
+  tilt_azimuth_deg: 0.0
+  force_setpoints_n: [10.0, 25.0, 30.0]
+  # Not used by the v1 quasi-static gate; kept so the config is the same shape in v2.
+  approach_speed_m_s: 0.002
+  contact_threshold_n: 1.0
+  ramp_s: 0.5
+  hold_s: 1.0
+  spindle_rpm: 5000.0           # clamp at 8600 (3M max for this plate)
+  traverse_speed_m_s: 0.05
+  traverse_dist_m: 0.05
+
+solver:
+  dt: 0.004166666666666667      # 1/240 s
+  substeps: 2
+  # The default pyramidal friction cone goes NaN on mesh-mesh contact in 6.1.0-rc.26.
+  cone: elliptic
+  max_contacts: 200000
