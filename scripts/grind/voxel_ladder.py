@@ -59,6 +59,11 @@ from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate(
     "isaacsim.physics.newton", True
 )
+# Unused here, and its timeline-stop callback segfaults in _clear_overlay — which is what has
+# been crashing every run at shutdown, and kills a run outright when the stage is recreated.
+omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate(
+    "isaacsim.robot_setup.virtual_gantry", False
+)
 import isaacsim.physics.newton as newton_ext  # noqa: E402
 from isaacsim.physics.newton import (  # noqa: E402
     CollisionConfig,
