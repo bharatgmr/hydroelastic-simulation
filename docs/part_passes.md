@@ -91,9 +91,12 @@ python scripts/replay_recording.py runs/part_BHARAT_CLOUD_3/press.usda --loop --
     --eye -0.064 -0.285 0.311 --target -0.064 -0.002 -0.034
 ```
 
-The rebaked scene is the whole scanned neighbourhood as one slab, the marked region in green, the
-disc at every pressed waypoint (at 40% opacity, so the patch shows through it), and the contact
-patch coloured by pressure. It is baked animation, not physics, so it opens in seconds and looks
+The rebaked scene is the whole scanned neighbourhood as one slab, the disc at every pressed
+waypoint (at 40% opacity, so the patch shows through it), the contact patch coloured by pressure,
+and the marked region as points that **change colour as the pass grinds them**: green is target
+not yet touched, amber is target the contact has actually covered. The share that ends up amber is
+printed by the rebake and is an independent check on the `marked hit` column above — 100% on both
+welds, 82–88% on the BHARAT parts. It is baked animation, not physics, so it opens in seconds and looks
 the same every time. On the BHARAT parts you can watch the patch sit beside the green band rather
 than on it; on the welds it stays on the line.
 
@@ -112,8 +115,13 @@ python scripts/grind/render_views.py runs/part_* --out runs/part_videos
 | `top` | plan, disc hidden — the patch against the green band, the clearest single view |
 | `chase` | tracks the disc down the pass, close in |
 
-`top` is the one to open first: on `BHARAT_CLOUD_3` the patch sits entirely below the green band for
-the whole pass, which is the 97% off-band number in the table as a picture.
+`top` is the one to open first: on `BHARAT_CLOUD_3` the patch sits below the band for the whole
+pass and only its upper edge clips the target, which is the 97% off-band number as a picture. On
+the welds the patch straddles the band and the amber front advances cleanly down it.
+
+The contact patch is drawn 1.5 mm proud of the surface on purpose. Both it and the marked region
+are point clouds on the same surface, and without the offset the band is drawn *over* the contact
+exactly where the two overlap — hiding the only region worth looking at.
 
 ## Limits specific to these runs
 

@@ -13,6 +13,12 @@ import trimesh
 
 __all__ = ["PressFrame", "write_press_usd"]
 
+# Green is the region the operator painted as the target; amber is what the pass has actually
+# ground so far. Seeing the band change colour is the point: it is the only thing in the replay
+# that says whether the pass hit what it was aimed at.
+MARKED_UNTOUCHED = (0.15, 0.70, 0.30)
+MARKED_TOUCHED = (1.0, 0.62, 0.10)
+
 
 class PressFrame:
     """One press step: where the pad sat, and the patch it produced."""
@@ -55,6 +61,7 @@ def write_press_usd(
     max_points: int = 40_000,
     point_width: float = 0.0015,
     marker_points: np.ndarray | None = None,
+    marker_touched: Sequence[np.ndarray] | None = None,
     pad_opacity: float = 0.4,
 ) -> None:
     """Write pad, sheet and per-frame contact points to a USD file.
@@ -69,8 +76,10 @@ def write_press_usd(
             produce 200k faces, which is slow to load and unreadable on screen.
         point_width: Display width of each contact point [m].
         pad_opacity: Display opacity of the disc; below 1 the contact patch shows through it.
-        marker_points: Optional static points drawn in green — the scan's marked region, so it is
+        marker_points: Optional points drawn in green — the scan's marked region, so it is
             visible in the replay whether contact is landing on it.
+        marker_touched: Optional per-frame boolean mask over ``marker_points`` (same length,
+            one entry per frame), marking the points ground so far. Those turn amber.
     """
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdShade, Vt
 
@@ -135,16 +144,26 @@ def write_press_usd(
     translate_op = pad_xform.AddTranslateOp()
     orient_op = pad_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
 
+    marker_colour_attr = None
     if marker_points is not None and len(marker_points):
         marked = np.asarray(marker_points, dtype=np.float32)
+        keep_marked = np.arange(len(marked))
         if len(marked) > max_points:
-            marked = marked[np.random.default_rng(1).choice(len(marked), max_points, replace=False)]
+            # The touched masks index the same array, so both must be subsampled identically.
+            keep_marked = np.random.default_rng(1).choice(len(marked), max_points, replace=False)
+            marked = marked[keep_marked]
         marker = UsdGeom.Points.Define(stage, "/World/marked")
         marker.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(marked))
         marker.CreateWidthsAttr(Vt.FloatArray.FromNumpy(
             np.full(len(marked), point_width, np.float32)))
         marker.SetWidthsInterpolation(UsdGeom.Tokens.constant)
-        marker.CreateDisplayColorAttr(Vt.Vec3fArray([Gf.Vec3f(0.15, 0.70, 0.30)]))
+        marker_colour_attr = marker.CreateDisplayColorAttr()
+        if marker_touched is None:
+            marker_colour_attr.Set(Vt.Vec3fArray([Gf.Vec3f(*MARKED_UNTOUCHED)]))
+        else:
+            # Per-vertex so the band can be recoloured as the pass grinds it.
+            UsdGeom.PrimvarsAPI(marker).GetPrimvar("displayColor").SetInterpolation(
+                UsdGeom.Tokens.vertex)
 
     points = UsdGeom.Points.Define(stage, "/World/contact")
     points_attr = points.CreatePointsAttr()
@@ -172,6 +191,13 @@ def write_press_usd(
             Vt.FloatArray.FromNumpy(np.full(len(centroid), point_width, np.float32)),
             time=frame_index,
         )
+        if marker_colour_attr is not None and marker_touched is not None:
+            touched = np.asarray(marker_touched[frame_index], dtype=bool)[keep_marked]
+            colours = np.where(touched[:, None],
+                               np.array(MARKED_TOUCHED, dtype=np.float32),
+                               np.array(MARKED_UNTOUCHED, dtype=np.float32)).astype(np.float32)
+            marker_colour_attr.Set(Vt.Vec3fArray.FromNumpy(colours), time=frame_index)
+
         if frame.label:
             stage.SetMetadata("comment", frame.label) if frame_index == 0 else None
 

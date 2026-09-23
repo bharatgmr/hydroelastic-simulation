@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "src"))
@@ -32,7 +33,8 @@ from grind_sim.tcp import TcpFrame, Transform, waypoint_frame  # noqa: E402
 from grind_sim.viz import PressFrame, write_press_usd  # noqa: E402
 
 
-def rebake(run: Path, *, cell: float, thickness: float, margin: float, fps: float) -> Path:
+def rebake(run: Path, *, cell: float, thickness: float, margin: float, fps: float,
+           lift: float, touch_radius: float, marker_cap: int) -> Path:
     summary = json.loads((run / "summary.json").read_text())
     geometry = np.load(run / "geometry.npz")
 
@@ -51,15 +53,29 @@ def rebake(run: Path, *, cell: float, thickness: float, margin: float, fps: floa
                           margin=margin)
     pad_mesh = make_pad(PadSpec(thickness=summary["config"].get("pad_thickness_m", 0.0127)))
 
-    frames = []
+    marked = geometry["marked_local"]
+    marked_tree = cKDTree(marked[:, :2])
+    touched = np.zeros(len(marked), dtype=bool)
+
+    frames, touched_by_frame = [], []
     for patch_file in sorted((run / "patches").glob("wp_*.npz")):
         patch = np.load(patch_file)
         triad = waypoint_frame(normal=patch["normal"], direction=patch["tangent"])
         tcp_in_world = Transform(triad.rotation,
                                  patch["position"] + triad.rotation[:, 2] * float(patch["depth"]))
         translate, quat = tcp.pad_pose_at(tcp_in_world)
-        frames.append(PressFrame(tuple(translate), quat, patch["centroid"], patch["pressure"],
+
+        # Raise the patch clear of the marked overlay. Both are point clouds sitting on the same
+        # surface, and without this the band is drawn over the contact exactly where they overlap —
+        # hiding the one thing worth looking at.
+        centroid = np.asarray(patch["centroid"], dtype=np.float64)
+        if len(centroid):
+            centroid = centroid + np.asarray(patch["normal"], dtype=np.float64) * lift
+            for index in marked_tree.query_ball_point(patch["centroid"][:, :2], touch_radius):
+                touched[index] = True
+        frames.append(PressFrame(tuple(translate), quat, centroid, patch["pressure"],
                                  label=patch_file.stem))
+        touched_by_frame.append(touched.copy())
     if not frames:
         raise SystemExit(f"{run}: no patches to rebake")
 
@@ -67,14 +83,16 @@ def rebake(run: Path, *, cell: float, thickness: float, margin: float, fps: floa
     if usd_path.exists():
         usd_path.unlink()
     write_press_usd(str(usd_path), pad_mesh, part_mesh, frames, fps=fps,
-                    marker_points=geometry["marked_local"])
+                    marker_points=marked, marker_touched=touched_by_frame,
+                    max_points=marker_cap)
 
     lo, hi = part_mesh.bounds
     centre = (lo + hi) / 2.0
     span = float(np.linalg.norm(hi - lo))
     eye = centre + np.array([0.0, -0.45 * span, 0.55 * span])
+    ground = float(touched.mean()) * 100.0
     print(f"{run.name}: {len(frames)} frames, part {(hi[0]-lo[0])*1e3:.0f} x "
-          f"{(hi[1]-lo[1])*1e3:.0f} mm -> {usd_path}")
+          f"{(hi[1]-lo[1])*1e3:.0f} mm, {ground:.0f}% of the marked region ground -> {usd_path}")
     print(f"    python scripts/replay_recording.py {usd_path} --loop \\\n"
           f"        --eye {eye[0]:.3f} {eye[1]:.3f} {eye[2]:.3f} "
           f"--target {centre[0]:.3f} {centre[1]:.3f} {centre[2]:.3f}")
@@ -91,13 +109,20 @@ def main() -> int:
     parser.add_argument("--margin", type=float, default=0.03,
                         help="flat skirt beyond the scanned neighbourhood [m]")
     parser.add_argument("--fps", type=float, default=12.0)
+    parser.add_argument("--lift", type=float, default=0.0015,
+                        help="raise the contact patch this far off the surface for display [m]")
+    parser.add_argument("--touch-radius", type=float, default=0.004,
+                        help="a marked point within this of a contact point counts as ground [m]")
+    parser.add_argument("--marker-points", type=int, default=12000,
+                        help="cap on marked points drawn; they carry a colour per frame")
     args = parser.parse_args()
 
     for run in args.runs:
         if not (run / "summary.json").exists():
             print(f"{run}: not a part run, skipped")
             continue
-        rebake(run, cell=args.cell, thickness=args.thickness, margin=args.margin, fps=args.fps)
+        rebake(run, cell=args.cell, thickness=args.thickness, margin=args.margin, fps=args.fps,
+               lift=args.lift, touch_radius=args.touch_radius, marker_cap=args.marker_points)
     return 0
 
 
